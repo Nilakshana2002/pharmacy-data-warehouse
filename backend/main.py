@@ -1,20 +1,21 @@
 """
 Pharmacy Data Warehouse System - FastAPI Application Entry Point
-File: backend/main.py
+Module: backend/main.py
 """
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from datetime import datetime
 from backend.routers import analytics
-from backend.database import is_mysql_connected
+from backend.database import check_db_connection
 
 app = FastAPI(
-    title="Pharmacy Data Warehouse System API",
-    description="Enterprise ELT & Star Schema Analytical API for Pharmacy Core, POS, Inventory, and Insurance Claims.",
+    title="Pharmacy Data Warehouse OLAP API",
+    description="Analytical query service for central_pharmacy_dwh star schema (Sales, Inventory Batches, Claims).",
     version="1.0.0"
 )
 
-# Enable CORS for development frontend
+# 1. Configure CORS to allow all origins for localhost development
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,27 +24,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register routers
+# 2. Mount the analytics router under prefix '/api/analytics'
 app.include_router(analytics.router)
 
 
-@app.get("/")
-def root():
+# 3. Health check route at GET '/api/health'
+@app.get("/api/health", tags=["health"])
+def health_check():
+    """System health check endpoint verifying database connectivity."""
+    db_status = check_db_connection()
     return {
-        "system": "Pharmacy Data Warehouse & Analytics Platform",
-        "version": "1.0.0",
-        "status": "ONLINE",
-        "database_connected": is_mysql_connected(),
-        "docs_url": "/docs"
+        "status": "HEALTHY" if db_status.get("connected") else "DEGRADED",
+        "service": "pharmacy-dwh-backend",
+        "timestamp": datetime.utcnow().isoformat(),
+        "database": db_status
     }
 
 
-@app.get("/health")
-def health_check():
+# Root route
+@app.get("/", tags=["root"])
+def root():
     return {
-        "status": "HEALTHY",
-        "database": "CONNECTED" if is_mysql_connected() else "DISCONNECTED",
-        "dwh_target": "central_pharmacy_dwh"
+        "service": "Pharmacy Data Warehouse OLAP API",
+        "version": "1.0.0",
+        "docs_url": "/docs",
+        "health_check": "/api/health",
+        "endpoints": [
+            "/api/analytics/kpis",
+            "/api/analytics/profitability",
+            "/api/analytics/inventory-alerts",
+            "/api/analytics/claims-summary"
+        ]
     }
 
 
